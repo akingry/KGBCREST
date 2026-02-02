@@ -3,6 +3,7 @@ StegoTool Backend Server
 
 Handles all encoding/decoding computation in Python.
 The HTML frontend just sends requests to this server.
+Source text is loaded automatically from source_text.txt on startup.
 """
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -21,8 +22,29 @@ STRENGTH = 150
 RS_SYMBOLS = 64
 REPETITION = 7
 
-# Store source text in memory (per session in production, global for simplicity here)
-source_text_cache = {}
+# Source text path (same directory as server)
+SOURCE_TEXT_FILE = os.path.join(os.path.dirname(__file__), 'source_text.txt')
+
+# Global cipher instance (loaded on startup)
+cipher = None
+
+
+def load_source_text():
+    """Load source text on server startup."""
+    global cipher
+    
+    if not os.path.exists(SOURCE_TEXT_FILE):
+        print(f"ERROR: source_text.txt not found at {SOURCE_TEXT_FILE}")
+        print("Please create source_text.txt with your shared source text.")
+        return False
+    
+    try:
+        cipher = BookCipher(SOURCE_TEXT_FILE)
+        print(f"✓ Loaded source text: {len(cipher.text):,} chars, {len(cipher.char_positions)} unique")
+        return True
+    except Exception as e:
+        print(f"ERROR loading source text: {e}")
+        return False
 
 
 class StegoHandler(BaseHTTPRequestHandler):
@@ -56,7 +78,12 @@ class StegoHandler(BaseHTTPRequestHandler):
         elif path.endswith('.css'):
             self._serve_file(path[1:], 'text/css')
         elif path == '/api/status':
-            self._send_json({'status': 'ok', 'version': '1.0'})
+            self._send_json({
+                'status': 'ok', 
+                'version': '1.0',
+                'sourceLoaded': cipher is not None,
+                'sourceChars': len(cipher.text) if cipher else 0
+            })
         else:
             self._send_error('Not found', 404)
     
@@ -85,9 +112,7 @@ class StegoHandler(BaseHTTPRequestHandler):
             self._send_error('Invalid JSON')
             return
         
-        if path == '/api/load-source':
-            self._handle_load_source(data)
-        elif path == '/api/capacity':
+        if path == '/api/capacity':
             self._handle_capacity(data)
         elif path == '/api/encode':
             self._handle_encode(data)
@@ -95,36 +120,6 @@ class StegoHandler(BaseHTTPRequestHandler):
             self._handle_decode(data)
         else:
             self._send_error('Unknown endpoint', 404)
-    
-    def _handle_load_source(self, data):
-        """Load source text into memory"""
-        try:
-            source_text = data.get('text', '')
-            if not source_text:
-                self._send_error('No source text provided')
-                return
-            
-            # Store in cache
-            source_text_cache['text'] = source_text
-            
-            # Get stats
-            cipher = BookCipher.__new__(BookCipher)
-            cipher.text = source_text
-            cipher.char_positions = {}
-            for i, char in enumerate(source_text):
-                if char not in cipher.char_positions:
-                    cipher.char_positions[char] = []
-                cipher.char_positions[char].append(i)
-            
-            source_text_cache['cipher'] = cipher
-            
-            self._send_json({
-                'ok': True,
-                'length': len(source_text),
-                'uniqueChars': len(cipher.char_positions)
-            })
-        except Exception as e:
-            self._send_error(str(e))
     
     def _handle_capacity(self, data):
         """Calculate capacity for an image"""
@@ -155,6 +150,10 @@ class StegoHandler(BaseHTTPRequestHandler):
     def _handle_encode(self, data):
         """Encode a message into an image"""
         try:
+            if cipher is None:
+                self._send_error('Source text not loaded. Check source_text.txt exists.')
+                return
+            
             message = data.get('message', '')
             image_data = data.get('image', '')  # Base64 encoded
             
@@ -164,10 +163,6 @@ class StegoHandler(BaseHTTPRequestHandler):
             
             if not image_data:
                 self._send_error('No image provided')
-                return
-            
-            if 'cipher' not in source_text_cache:
-                self._send_error('No source text loaded')
                 return
             
             # Decode base64 image
@@ -183,17 +178,12 @@ class StegoHandler(BaseHTTPRequestHandler):
             
             output_path = input_path.replace('.png', '_encoded.png')
             
-            # Save source text to temp file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
-                f.write(source_text_cache['text'])
-                source_path = f.name
-            
             try:
-                # Encode
+                # Encode using the pre-loaded source text
                 encode_image(
                     input_path, message, output_path,
                     strength=STRENGTH, rs_symbols=RS_SYMBOLS, repetition=REPETITION,
-                    source_path=source_path
+                    source_path=SOURCE_TEXT_FILE
                 )
                 
                 # Read encoded image
@@ -210,7 +200,7 @@ class StegoHandler(BaseHTTPRequestHandler):
                 
             finally:
                 # Cleanup temp files
-                for p in [input_path, output_path, source_path]:
+                for p in [input_path, output_path]:
                     if os.path.exists(p):
                         os.remove(p)
                         
@@ -220,14 +210,14 @@ class StegoHandler(BaseHTTPRequestHandler):
     def _handle_decode(self, data):
         """Decode a message from an image"""
         try:
+            if cipher is None:
+                self._send_error('Source text not loaded. Check source_text.txt exists.')
+                return
+            
             image_data = data.get('image', '')  # Base64 encoded
             
             if not image_data:
                 self._send_error('No image provided')
-                return
-            
-            if 'cipher' not in source_text_cache:
-                self._send_error('No source text loaded')
                 return
             
             # Decode base64 image
@@ -241,17 +231,12 @@ class StegoHandler(BaseHTTPRequestHandler):
                 f.write(image_bytes)
                 input_path = f.name
             
-            # Save source text to temp file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
-                f.write(source_text_cache['text'])
-                source_path = f.name
-            
             try:
-                # Decode
+                # Decode using the pre-loaded source text
                 message = decode_image(
                     input_path,
                     strength=STRENGTH, rs_symbols=RS_SYMBOLS, repetition=REPETITION,
-                    source_path=source_path
+                    source_path=SOURCE_TEXT_FILE
                 )
                 
                 self._send_json({
@@ -261,10 +246,9 @@ class StegoHandler(BaseHTTPRequestHandler):
                 })
                 
             finally:
-                # Cleanup temp files
-                for p in [input_path, source_path]:
-                    if os.path.exists(p):
-                        os.remove(p)
+                # Cleanup temp file
+                if os.path.exists(input_path):
+                    os.remove(input_path)
                         
         except Exception as e:
             self._send_error(str(e))
@@ -275,8 +259,12 @@ class StegoHandler(BaseHTTPRequestHandler):
 
 
 def run_server(port=8080):
+    # Load source text on startup
+    if not load_source_text():
+        print("\nServer starting anyway, but encode/decode will fail without source_text.txt")
+    
     server = HTTPServer(('localhost', port), StegoHandler)
-    print(f"StegoTool server running at http://localhost:{port}")
+    print(f"\nStegoTool server running at http://localhost:{port}")
     print("Press Ctrl+C to stop")
     try:
         server.serve_forever()

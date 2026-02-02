@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StegoTool - Book Cipher Steganography</title>
+    <title>StegoTool</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
@@ -24,16 +24,6 @@
             -webkit-text-fill-color: transparent;
         }
         header p { color: #888; }
-
-        .warning-banner {
-            background: rgba(240, 136, 62, 0.2);
-            border: 2px solid #f0883e;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .warning-banner strong { color: #f0883e; }
 
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab-btn {
@@ -63,7 +53,6 @@
 
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; color: #aaa; }
-        .required { color: #f0883e; }
 
         .file-drop {
             padding: 30px;
@@ -145,46 +134,22 @@
             white-space: pre-wrap;
             word-wrap: break-word;
         }
-
-        .info-box {
-            background: #2a2a4a;
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        .info-box h3 { color: #00d4ff; margin-bottom: 15px; }
-        .info-box ul { list-style: none; }
-        .info-box li { padding: 8px 0; border-bottom: 1px solid #3a3a5a; color: #aaa; }
-        .info-box li:last-child { border: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>🔐 StegoTool</h1>
-            <p>Book Cipher Steganography - Python Backend</p>
+            <p>Hide messages in images</p>
         </header>
-
-        <div class="warning-banner">
-            <strong>⚠️ IMPORTANT:</strong> Sender and receiver must share the <strong>SAME source text (book)</strong> file!
-        </div>
 
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('encode')">🔒 Encode</button>
             <button class="tab-btn" onclick="switchTab('decode')">🔓 Decode</button>
-            <button class="tab-btn" onclick="switchTab('info')">ℹ️ Info</button>
         </div>
 
         <!-- ENCODE TAB -->
         <div id="encode-tab" class="tab-content active">
-            <div class="form-group">
-                <label class="required">📖 Source Text (Book) - REQUIRED</label>
-                <div class="file-drop" id="source-drop">
-                    <input type="file" id="source-file" accept=".txt">
-                    <p>📁 Click or drop your source text file (.txt)</p>
-                </div>
-            </div>
-
             <div class="form-group">
                 <label>🖼️ Source Image</label>
                 <div class="file-drop" id="image-drop">
@@ -223,14 +188,6 @@
         <!-- DECODE TAB -->
         <div id="decode-tab" class="tab-content">
             <div class="form-group">
-                <label class="required">📖 Source Text (Book) - Must match sender's!</label>
-                <div class="file-drop" id="decode-source-drop">
-                    <input type="file" id="decode-source-file" accept=".txt">
-                    <p>📁 Click or drop the SAME source text file</p>
-                </div>
-            </div>
-
-            <div class="form-group">
                 <label>🖼️ Encoded Image</label>
                 <div class="file-drop" id="decode-image-drop">
                     <input type="file" id="decode-image-file" accept="image/*">
@@ -251,46 +208,11 @@
                 <p id="decoded-text"></p>
             </div>
         </div>
-
-        <!-- INFO TAB -->
-        <div id="info-tab" class="tab-content">
-            <div class="info-box">
-                <h3>🔐 How It Works</h3>
-                <ul>
-                    <li><strong>Book Cipher:</strong> Characters encoded as positions in shared text</li>
-                    <li><strong>Relative Positions:</strong> +/- offsets from previous character</li>
-                    <li><strong>Compression:</strong> zlib compresses the position data</li>
-                    <li><strong>Error Correction:</strong> Reed-Solomon + 7x repetition</li>
-                    <li><strong>DCT Watermark:</strong> Survives JPEG quality 60+</li>
-                </ul>
-            </div>
-
-            <div class="info-box">
-                <h3>📊 Capacity</h3>
-                <ul>
-                    <li>640×480: ~75 characters</li>
-                    <li>1280×720: ~250 characters</li>
-                    <li>1920×1080: ~500 characters</li>
-                    <li>4K: ~2000 characters</li>
-                </ul>
-            </div>
-
-            <div class="info-box">
-                <h3>🛡️ Security</h3>
-                <ul>
-                    <li>Without the source text, decoding is <strong>impossible</strong></li>
-                    <li>The source text is your shared secret key</li>
-                    <li>Share the source text securely beforehand</li>
-                </ul>
-            </div>
-        </div>
     </div>
 
     <script>
         const API = '';  // Same origin
         
-        let sourceLoaded = false;
-        let decodeSourceLoaded = false;
         let imageLoaded = false;
         let decodeImageLoaded = false;
         let maxChars = 0;
@@ -309,6 +231,8 @@
             const drop = document.getElementById(dropId);
             const input = document.getElementById(inputId);
             
+            if (!drop || !input) return;
+            
             drop.onclick = () => input.click();
             input.onchange = () => handler(input.files[0]);
             
@@ -321,42 +245,7 @@
             };
         }
 
-        // Load source text
-        async function loadSource(file, isEncode = true) {
-            const text = await file.text();
-            
-            const status = document.getElementById(isEncode ? 'encode-status' : 'decode-status');
-            status.className = 'status show loading';
-            status.textContent = 'Loading source text...';
-            
-            try {
-                const res = await fetch(API + '/api/load-source', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({text})
-                });
-                const data = await res.json();
-                
-                if (data.error) throw new Error(data.error);
-                
-                const drop = document.getElementById(isEncode ? 'source-drop' : 'decode-source-drop');
-                drop.classList.add('loaded');
-                drop.querySelector('p').textContent = `✓ ${file.name} (${data.length.toLocaleString()} chars)`;
-                
-                if (isEncode) sourceLoaded = true;
-                else decodeSourceLoaded = true;
-                
-                updateButtons();
-                status.className = 'status show success';
-                status.textContent = `✓ Source loaded: ${data.length.toLocaleString()} chars, ${data.uniqueChars} unique`;
-                
-            } catch (e) {
-                status.className = 'status show error';
-                status.textContent = '✗ ' + e.message;
-            }
-        }
-
-        // Load image
+        // Load image for encoding
         async function loadImage(file) {
             const reader = new FileReader();
             reader.onload = async e => {
@@ -426,8 +315,8 @@
 
         // Update button states
         function updateButtons() {
-            document.getElementById('encode-btn').disabled = !(sourceLoaded && imageLoaded);
-            document.getElementById('decode-btn').disabled = !(decodeSourceLoaded && decodeImageLoaded);
+            document.getElementById('encode-btn').disabled = !imageLoaded;
+            document.getElementById('decode-btn').disabled = !decodeImageLoaded;
         }
 
         // Encode
@@ -492,35 +381,73 @@
             }
         }
 
-        // Download
-        function download(format) {
+        // Download with File System Access API (Save As dialog)
+        async function download(format) {
             if (!encodedImageData) return;
             
-            const link = document.createElement('a');
-            link.download = 'encoded.' + format;
+            const status = document.getElementById('encode-status');
             
-            if (format === 'png') {
-                link.href = encodedImageData;
-            } else {
-                // For WebP, need to convert via canvas
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    canvas.getContext('2d').drawImage(img, 0, 0);
-                    link.href = canvas.toDataURL('image/webp', 1.0);
-                    link.click();
-                };
-                img.src = encodedImageData;
-                return;
+            // Convert base64 to blob
+            async function dataUrlToBlob(dataUrl, mimeType) {
+                if (mimeType === 'image/webp') {
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            canvas.getContext('2d').drawImage(img, 0, 0);
+                            canvas.toBlob(resolve, 'image/webp', 1.0);
+                        };
+                        img.src = dataUrl;
+                    });
+                } else {
+                    const res = await fetch(dataUrl);
+                    return res.blob();
+                }
             }
+            
+            const mimeType = format === 'webp' ? 'image/webp' : 'image/png';
+            const blob = await dataUrlToBlob(encodedImageData, mimeType);
+            
+            // Try File System Access API (proper Save As dialog)
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: `encoded_image.${format}`,
+                        types: [{
+                            description: format.toUpperCase() + ' Image',
+                            accept: { [mimeType]: [`.${format}`] }
+                        }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    status.className = 'status show success';
+                    status.textContent = `✓ Saved: ${handle.name}`;
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        status.className = 'status show';
+                        status.textContent = 'Save cancelled';
+                        return;
+                    }
+                    console.warn('File System Access failed, falling back:', err);
+                }
+            }
+            
+            // Fallback: standard download
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `encoded_image.${format}`;
             link.click();
+            URL.revokeObjectURL(url);
+            status.className = 'status show success';
+            status.textContent = `✓ Download started - check your Downloads folder`;
         }
 
         // Initialize
-        setupFileDrop('source-drop', 'source-file', f => loadSource(f, true));
-        setupFileDrop('decode-source-drop', 'decode-source-file', f => loadSource(f, false));
         setupFileDrop('image-drop', 'image-file', loadImage);
         setupFileDrop('decode-image-drop', 'decode-image-file', loadDecodeImage);
     </script>
