@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StegoTool - Book Cipher Steganography</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+        header { text-align: center; padding: 30px 0; }
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        header p { color: #888; }
+
+        .warning-banner {
+            background: rgba(240, 136, 62, 0.2);
+            border: 2px solid #f0883e;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .warning-banner strong { color: #f0883e; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: #2a2a4a;
+            color: #888;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover { background: #3a3a5a; }
+        .tab-btn.active {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            background: #1e1e3a;
+            border-radius: 15px;
+            padding: 30px;
+        }
+        .tab-content.active { display: block; }
+
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #aaa; }
+        .required { color: #f0883e; }
+
+        .file-drop {
+            padding: 30px;
+            background: #2a2a4a;
+            border: 2px dashed #444;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .file-drop:hover, .file-drop.dragover {
+            border-color: #00d4ff;
+            background: #3a3a5a;
+        }
+        .file-drop.loaded { border-color: #3fb950; border-style: solid; }
+        .file-drop input { display: none; }
+
+        .preview { margin: 20px 0; text-align: center; }
+        .preview img { max-width: 100%; max-height: 300px; border-radius: 10px; }
+
+        .capacity {
+            background: #2a2a4a;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3fb950;
+        }
+        .capacity.warning { border-color: #f0883e; }
+        .capacity.danger { border-color: #f85149; }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            background: #2a2a4a;
+            border: 2px solid #444;
+            border-radius: 10px;
+            color: #e0e0e0;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 100px;
+        }
+        textarea:focus { outline: none; border-color: #00d4ff; }
+
+        .btn {
+            padding: 15px 40px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary { background: #3a3a5a; color: #e0e0e0; margin-left: 10px; }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.success { background: rgba(63,185,80,0.2); border: 1px solid #3fb950; color: #3fb950; }
+        .status.error { background: rgba(248,81,73,0.2); border: 1px solid #f85149; color: #f85149; }
+        .status.loading { background: rgba(0,212,255,0.2); border: 1px solid #00d4ff; color: #00d4ff; }
+
+        .output { margin-top: 20px; text-align: center; }
+        .output img { max-width: 100%; max-height: 400px; border-radius: 10px; margin-bottom: 15px; }
+
+        .decoded-msg {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: left;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .info-box {
+            background: #2a2a4a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .info-box h3 { color: #00d4ff; margin-bottom: 15px; }
+        .info-box ul { list-style: none; }
+        .info-box li { padding: 8px 0; border-bottom: 1px solid #3a3a5a; color: #aaa; }
+        .info-box li:last-child { border: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 StegoTool</h1>
+            <p>Book Cipher Steganography - Python Backend</p>
+        </header>
+
+        <div class="warning-banner">
+            <strong>⚠️ IMPORTANT:</strong> Sender and receiver must share the <strong>SAME source text (book)</strong> file!
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('encode')">🔒 Encode</button>
+            <button class="tab-btn" onclick="switchTab('decode')">🔓 Decode</button>
+            <button class="tab-btn" onclick="switchTab('info')">ℹ️ Info</button>
+        </div>
+
+        <!-- ENCODE TAB -->
+        <div id="encode-tab" class="tab-content active">
+            <div class="form-group">
+                <label class="required">📖 Source Text (Book) - REQUIRED</label>
+                <div class="file-drop" id="source-drop">
+                    <input type="file" id="source-file" accept=".txt">
+                    <p>📁 Click or drop your source text file (.txt)</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>🖼️ Source Image</label>
+                <div class="file-drop" id="image-drop">
+                    <input type="file" id="image-file" accept="image/*">
+                    <p>📁 Click or drop an image (PNG, JPEG, WebP)</p>
+                </div>
+            </div>
+
+            <div class="preview" id="encode-preview" style="display:none">
+                <img id="preview-img">
+            </div>
+
+            <div class="capacity" id="capacity" style="display:none">
+                <span id="capacity-text"></span>
+            </div>
+
+            <div class="form-group">
+                <label>🔒 Secret Message</label>
+                <textarea id="message" placeholder="Enter your secret message..." oninput="updateCount()"></textarea>
+                <small id="char-count" style="color:#888">0 characters</small>
+            </div>
+
+            <button class="btn btn-primary" id="encode-btn" onclick="encode()" disabled>🔒 Encode Message</button>
+
+            <div class="status" id="encode-status"></div>
+
+            <div class="output" id="encode-output" style="display:none">
+                <h3>Encoded Image</h3>
+                <img id="encoded-img">
+                <br>
+                <button class="btn btn-secondary" onclick="download('png')">💾 Download PNG</button>
+                <button class="btn btn-secondary" onclick="download('webp')">💾 Download WebP</button>
+            </div>
+        </div>
+
+        <!-- DECODE TAB -->
+        <div id="decode-tab" class="tab-content">
+            <div class="form-group">
+                <label class="required">📖 Source Text (Book) - Must match sender's!</label>
+                <div class="file-drop" id="decode-source-drop">
+                    <input type="file" id="decode-source-file" accept=".txt">
+                    <p>📁 Click or drop the SAME source text file</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>🖼️ Encoded Image</label>
+                <div class="file-drop" id="decode-image-drop">
+                    <input type="file" id="decode-image-file" accept="image/*">
+                    <p>📁 Click or drop the encoded image</p>
+                </div>
+            </div>
+
+            <div class="preview" id="decode-preview" style="display:none">
+                <img id="decode-preview-img">
+            </div>
+
+            <button class="btn btn-primary" id="decode-btn" onclick="decode()" disabled>🔓 Decode Message</button>
+
+            <div class="status" id="decode-status"></div>
+
+            <div class="decoded-msg" id="decoded-output" style="display:none">
+                <strong>Decoded Message:</strong>
+                <p id="decoded-text"></p>
+            </div>
+        </div>
+
+        <!-- INFO TAB -->
+        <div id="info-tab" class="tab-content">
+            <div class="info-box">
+                <h3>🔐 How It Works</h3>
+                <ul>
+                    <li><strong>Book Cipher:</strong> Characters encoded as positions in shared text</li>
+                    <li><strong>Relative Positions:</strong> +/- offsets from previous character</li>
+                    <li><strong>Compression:</strong> zlib compresses the position data</li>
+                    <li><strong>Error Correction:</strong> Reed-Solomon + 7x repetition</li>
+                    <li><strong>DCT Watermark:</strong> Survives JPEG quality 60+</li>
+                </ul>
+            </div>
+
+            <div class="info-box">
+                <h3>📊 Capacity</h3>
+                <ul>
+                    <li>640×480: ~75 characters</li>
+                    <li>1280×720: ~250 characters</li>
+                    <li>1920×1080: ~500 characters</li>
+                    <li>4K: ~2000 characters</li>
+                </ul>
+            </div>
+
+            <div class="info-box">
+                <h3>🛡️ Security</h3>
+                <ul>
+                    <li>Without the source text, decoding is <strong>impossible</strong></li>
+                    <li>The source text is your shared secret key</li>
+                    <li>Share the source text securely beforehand</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '';  // Same origin
+        
+        let sourceLoaded = false;
+        let decodeSourceLoaded = false;
+        let imageLoaded = false;
+        let decodeImageLoaded = false;
+        let maxChars = 0;
+        let encodedImageData = null;
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+        }
+
+        // File drop handlers
+        function setupFileDrop(dropId, inputId, handler) {
+            const drop = document.getElementById(dropId);
+            const input = document.getElementById(inputId);
+            
+            drop.onclick = () => input.click();
+            input.onchange = () => handler(input.files[0]);
+            
+            drop.ondragover = e => { e.preventDefault(); drop.classList.add('dragover'); };
+            drop.ondragleave = () => drop.classList.remove('dragover');
+            drop.ondrop = e => {
+                e.preventDefault();
+                drop.classList.remove('dragover');
+                if (e.dataTransfer.files.length) handler(e.dataTransfer.files[0]);
+            };
+        }
+
+        // Load source text
+        async function loadSource(file, isEncode = true) {
+            const text = await file.text();
+            
+            const status = document.getElementById(isEncode ? 'encode-status' : 'decode-status');
+            status.className = 'status show loading';
+            status.textContent = 'Loading source text...';
+            
+            try {
+                const res = await fetch(API + '/api/load-source', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text})
+                });
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                const drop = document.getElementById(isEncode ? 'source-drop' : 'decode-source-drop');
+                drop.classList.add('loaded');
+                drop.querySelector('p').textContent = `✓ ${file.name} (${data.length.toLocaleString()} chars)`;
+                
+                if (isEncode) sourceLoaded = true;
+                else decodeSourceLoaded = true;
+                
+                updateButtons();
+                status.className = 'status show success';
+                status.textContent = `✓ Source loaded: ${data.length.toLocaleString()} chars, ${data.uniqueChars} unique`;
+                
+            } catch (e) {
+                status.className = 'status show error';
+                status.textContent = '✗ ' + e.message;
+            }
+        }
+
+        // Load image
+        async function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = async e => {
+                const img = new Image();
+                img.onload = async () => {
+                    document.getElementById('encode-preview').style.display = 'block';
+                    document.getElementById('preview-img').src = e.target.result;
+                    
+                    // Get capacity from server
+                    try {
+                        const res = await fetch(API + '/api/capacity', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({width: img.width, height: img.height})
+                        });
+                        const data = await res.json();
+                        
+                        maxChars = data.maxChars;
+                        document.getElementById('capacity').style.display = 'block';
+                        document.getElementById('capacity-text').textContent = 
+                            `📊 Capacity: ~${maxChars} chars (${img.width}×${img.height})`;
+                        
+                        const drop = document.getElementById('image-drop');
+                        drop.classList.add('loaded');
+                        drop.querySelector('p').textContent = `✓ ${file.name}`;
+                        
+                        imageLoaded = true;
+                        updateButtons();
+                        updateCount();
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Load decode image
+        function loadDecodeImage(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                document.getElementById('decode-preview').style.display = 'block';
+                document.getElementById('decode-preview-img').src = e.target.result;
+                
+                const drop = document.getElementById('decode-image-drop');
+                drop.classList.add('loaded');
+                drop.querySelector('p').textContent = `✓ ${file.name}`;
+                
+                decodeImageLoaded = true;
+                updateButtons();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Update character count
+        function updateCount() {
+            const msg = document.getElementById('message').value;
+            const count = msg.length;
+            document.getElementById('char-count').textContent = `${count} / ${maxChars} characters`;
+            
+            const cap = document.getElementById('capacity');
+            cap.classList.remove('warning', 'danger');
+            if (count > maxChars) cap.classList.add('danger');
+            else if (count > maxChars * 0.8) cap.classList.add('warning');
+        }
+
+        // Update button states
+        function updateButtons() {
+            document.getElementById('encode-btn').disabled = !(sourceLoaded && imageLoaded);
+            document.getElementById('decode-btn').disabled = !(decodeSourceLoaded && decodeImageLoaded);
+        }
+
+        // Encode
+        async function encode() {
+            const message = document.getElementById('message').value;
+            const imageData = document.getElementById('preview-img').src;
+            
+            const status = document.getElementById('encode-status');
+            status.className = 'status show loading';
+            status.textContent = 'Encoding message...';
+            
+            try {
+                const res = await fetch(API + '/api/encode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message, image: imageData})
+                });
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                encodedImageData = data.image;
+                document.getElementById('encoded-img').src = data.image;
+                document.getElementById('encode-output').style.display = 'block';
+                
+                status.className = 'status show success';
+                status.textContent = `✓ Encoded ${data.messageLength} characters`;
+                
+            } catch (e) {
+                status.className = 'status show error';
+                status.textContent = '✗ ' + e.message;
+            }
+        }
+
+        // Decode
+        async function decode() {
+            const imageData = document.getElementById('decode-preview-img').src;
+            
+            const status = document.getElementById('decode-status');
+            status.className = 'status show loading';
+            status.textContent = 'Decoding message...';
+            
+            try {
+                const res = await fetch(API + '/api/decode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({image: imageData})
+                });
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                document.getElementById('decoded-text').textContent = data.message;
+                document.getElementById('decoded-output').style.display = 'block';
+                
+                status.className = 'status show success';
+                status.textContent = `✓ Decoded ${data.length} characters`;
+                
+            } catch (e) {
+                status.className = 'status show error';
+                status.textContent = '✗ ' + e.message;
+            }
+        }
+
+        // Download
+        function download(format) {
+            if (!encodedImageData) return;
+            
+            const link = document.createElement('a');
+            link.download = 'encoded.' + format;
+            
+            if (format === 'png') {
+                link.href = encodedImageData;
+            } else {
+                // For WebP, need to convert via canvas
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    canvas.getContext('2d').drawImage(img, 0, 0);
+                    link.href = canvas.toDataURL('image/webp', 1.0);
+                    link.click();
+                };
+                img.src = encodedImageData;
+                return;
+            }
+            link.click();
+        }
+
+        // Initialize
+        setupFileDrop('source-drop', 'source-file', f => loadSource(f, true));
+        setupFileDrop('decode-source-drop', 'decode-source-file', f => loadSource(f, false));
+        setupFileDrop('image-drop', 'image-file', loadImage);
+        setupFileDrop('decode-image-drop', 'decode-image-file', loadDecodeImage);
+    </script>
+</body>
+</html>
