@@ -792,50 +792,80 @@
         }
 
         // ============================================
-        // DCT FUNCTIONS
+        // DCT FUNCTIONS (Optimized with precomputed cosines)
         // ============================================
 
-        function dct2(block) {
-            const N = BLOCK_SIZE;
-            const result = new Array(N).fill(0).map(() => new Array(N).fill(0));
-            
-            for (let u = 0; u < N; u++) {
-                for (let v = 0; v < N; v++) {
-                    let sum = 0;
-                    for (let x = 0; x < N; x++) {
-                        for (let y = 0; y < N; y++) {
-                            sum += block[x][y] * 
-                                   Math.cos((2 * x + 1) * u * Math.PI / (2 * N)) *
-                                   Math.cos((2 * y + 1) * v * Math.PI / (2 * N));
-                        }
-                    }
-                    const cu = u === 0 ? 1 / Math.sqrt(2) : 1;
-                    const cv = v === 0 ? 1 / Math.sqrt(2) : 1;
-                    result[u][v] = 0.25 * cu * cv * sum;
+        // Precompute cosine values for fast DCT
+        const DCT_COS = new Array(8).fill(0).map(() => new Array(8).fill(0));
+        const DCT_SCALE = new Array(8);
+        
+        (function initDCT() {
+            const N = 8;
+            for (let k = 0; k < N; k++) {
+                DCT_SCALE[k] = k === 0 ? 1 / Math.sqrt(2) : 1;
+                for (let n = 0; n < N; n++) {
+                    DCT_COS[k][n] = Math.cos((2 * n + 1) * k * Math.PI / (2 * N));
                 }
             }
+        })();
+
+        function dct2(block) {
+            const N = 8;
+            const temp = new Array(N).fill(0).map(() => new Array(N).fill(0));
+            const result = new Array(N).fill(0).map(() => new Array(N).fill(0));
+            
+            // 1D DCT on rows
+            for (let i = 0; i < N; i++) {
+                for (let k = 0; k < N; k++) {
+                    let sum = 0;
+                    for (let n = 0; n < N; n++) {
+                        sum += block[i][n] * DCT_COS[k][n];
+                    }
+                    temp[i][k] = sum * DCT_SCALE[k] * 0.5;
+                }
+            }
+            
+            // 1D DCT on columns
+            for (let j = 0; j < N; j++) {
+                for (let k = 0; k < N; k++) {
+                    let sum = 0;
+                    for (let n = 0; n < N; n++) {
+                        sum += temp[n][j] * DCT_COS[k][n];
+                    }
+                    result[k][j] = sum * DCT_SCALE[k] * 0.5;
+                }
+            }
+            
             return result;
         }
 
         function idct2(block) {
-            const N = BLOCK_SIZE;
+            const N = 8;
+            const temp = new Array(N).fill(0).map(() => new Array(N).fill(0));
             const result = new Array(N).fill(0).map(() => new Array(N).fill(0));
             
-            for (let x = 0; x < N; x++) {
-                for (let y = 0; y < N; y++) {
+            // 1D IDCT on rows
+            for (let i = 0; i < N; i++) {
+                for (let n = 0; n < N; n++) {
                     let sum = 0;
-                    for (let u = 0; u < N; u++) {
-                        for (let v = 0; v < N; v++) {
-                            const cu = u === 0 ? 1 / Math.sqrt(2) : 1;
-                            const cv = v === 0 ? 1 / Math.sqrt(2) : 1;
-                            sum += cu * cv * block[u][v] *
-                                   Math.cos((2 * x + 1) * u * Math.PI / (2 * N)) *
-                                   Math.cos((2 * y + 1) * v * Math.PI / (2 * N));
-                        }
+                    for (let k = 0; k < N; k++) {
+                        sum += DCT_SCALE[k] * block[i][k] * DCT_COS[k][n];
                     }
-                    result[x][y] = 0.25 * sum;
+                    temp[i][n] = sum * 0.5;
                 }
             }
+            
+            // 1D IDCT on columns
+            for (let j = 0; j < N; j++) {
+                for (let n = 0; n < N; n++) {
+                    let sum = 0;
+                    for (let k = 0; k < N; k++) {
+                        sum += DCT_SCALE[k] * temp[k][j] * DCT_COS[k][n];
+                    }
+                    result[n][j] = sum * 0.5;
+                }
+            }
+            
             return result;
         }
 
@@ -959,10 +989,13 @@
         // WATERMARK EMBEDDING/EXTRACTION
         // ============================================
 
-        function embedWatermark(imageData, bits) {
+        async function embedWatermark(imageData, bits, statusEl) {
             const width = imageData.width;
             const height = imageData.height;
             const data = imageData.data;
+
+            if (statusEl) statusEl.textContent = 'Calculating luminance...';
+            await new Promise(r => setTimeout(r, 10));
 
             const luminance = new Array(height).fill(0).map(() => new Array(width).fill(0));
             for (let y = 0; y < height; y++) {
@@ -982,7 +1015,11 @@
             const blocksH = Math.floor(height / BLOCK_SIZE);
             const blocksW = Math.floor(width / BLOCK_SIZE);
 
+            if (statusEl) statusEl.textContent = `Embedding ${allBits.length} bits...`;
+            await new Promise(r => setTimeout(r, 10));
+
             let bitIdx = 0;
+            let blockCount = 0;
 
             for (let by = 0; by < blocksH && bitIdx < allBits.length; by++) {
                 for (let bx = 0; bx < blocksW && bitIdx < allBits.length; bx++) {
@@ -1022,16 +1059,26 @@
                     }
 
                     bitIdx++;
+                    blockCount++;
+                    
+                    // Yield every 500 blocks
+                    if (blockCount % 500 === 0) {
+                        if (statusEl) statusEl.textContent = `Embedding... ${Math.round(bitIdx/allBits.length*100)}%`;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
                 }
             }
 
             return imageData;
         }
 
-        function extractWatermark(imageData) {
+        async function extractWatermark(imageData, statusEl) {
             const width = imageData.width;
             const height = imageData.height;
             const data = imageData.data;
+
+            if (statusEl) statusEl.textContent = 'Calculating luminance...';
+            await new Promise(r => setTimeout(r, 10));
 
             const luminance = new Array(height).fill(0).map(() => new Array(width).fill(0));
             for (let y = 0; y < height; y++) {
@@ -1043,8 +1090,13 @@
 
             const blocksH = Math.floor(height / BLOCK_SIZE);
             const blocksW = Math.floor(width / BLOCK_SIZE);
+            const totalBlocks = blocksH * blocksW;
+
+            if (statusEl) statusEl.textContent = `Extracting from ${totalBlocks} blocks...`;
+            await new Promise(r => setTimeout(r, 10));
 
             const bits = [];
+            let blockCount = 0;
 
             for (let by = 0; by < blocksH; by++) {
                 for (let bx = 0; bx < blocksW; bx++) {
@@ -1064,6 +1116,13 @@
                     const q = STRENGTH;
                     const quantized = Math.round(coef / q) * q;
                     bits.push(coef >= quantized ? 1 : 0);
+                    
+                    blockCount++;
+                    // Yield every 1000 blocks to keep UI responsive
+                    if (blockCount % 1000 === 0) {
+                        if (statusEl) statusEl.textContent = `Extracting... ${Math.round(blockCount/totalBlocks*100)}%`;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
                 }
             }
 
@@ -1117,8 +1176,8 @@
                     encodeImageData.height
                 );
 
-                // Embed watermark
-                const encoded = embedWatermark(newImageData, protectedBits);
+                // Embed watermark (async with progress)
+                const encoded = await embedWatermark(newImageData, protectedBits, statusEl);
 
                 // Display result
                 const canvas = document.getElementById('processingCanvas');
@@ -1146,7 +1205,7 @@
 
             const statusEl = document.getElementById('decode-status');
             statusEl.className = 'status processing';
-            statusEl.textContent = 'Decoding message...';
+            statusEl.textContent = 'Loading image...';
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -1163,13 +1222,22 @@
                 ctx.drawImage(img, 0, 0);
                 const imageData = ctx.getImageData(0, 0, img.width, img.height);
 
-                // Extract watermark
-                const protectedBits = extractWatermark(imageData);
+                statusEl.textContent = `Processing ${img.width}x${img.height} image...`;
+                await new Promise(r => setTimeout(r, 50));
+
+                // Extract watermark (now async with progress)
+                const protectedBits = await extractWatermark(imageData, statusEl);
                 console.log(`Extracted ${protectedBits.length} bits`);
+
+                statusEl.textContent = 'Applying error correction...';
+                await new Promise(r => setTimeout(r, 10));
 
                 // Remove error correction
                 const compressed = ecDecode(protectedBits);
                 console.log(`After EC: ${compressed.length} bytes`);
+
+                statusEl.textContent = 'Decompressing...';
+                await new Promise(r => setTimeout(r, 10));
 
                 // Decompress
                 const positionBytes = pako.inflate(compressed);
@@ -1178,6 +1246,9 @@
                 // Decode positions
                 const positions = decodePositions(positionBytes);
                 console.log(`Positions: ${positions.length}`);
+
+                statusEl.textContent = 'Decoding book cipher...';
+                await new Promise(r => setTimeout(r, 10));
 
                 // Book cipher decode
                 const message = decodeBookCipher(positions, decodeSourceText);
