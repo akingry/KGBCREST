@@ -167,6 +167,50 @@ python server.py</code></pre>
             <li><strong>DCT Watermarking</strong> — Embedded in frequency domain coefficients</li>
         </ol>
 
+        <h2>DCT Watermarking Explained</h2>
+        <p>The <strong>Discrete Cosine Transform (DCT)</strong> converts 8×8 pixel blocks from spatial domain (brightness values) into frequency domain (how quickly brightness changes). This is the same transform JPEG uses.</p>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>📊 Frequency Domain</h3>
+                <p><strong>DC coefficient:</strong> Average brightness<br>
+                <strong>Low freq:</strong> Smooth gradients<br>
+                <strong>Mid freq:</strong> Edges, textures — <em>where we hide data</em><br>
+                <strong>High freq:</strong> Fine detail — discarded by JPEG</p>
+            </div>
+            <div class="feature">
+                <h3>🎯 Why Mid-Frequency?</h3>
+                <p>JPEG preserves mid-frequencies (edges/structure) while discarding high frequencies. Hiding data here survives compression while remaining visually subtle.</p>
+            </div>
+        </div>
+
+        <h3 style="color:#f6c453;margin-top:20px;">Quantization Index Modulation (QIM)</h3>
+        <p>To embed a bit, we quantize the DCT coefficient to encode 0 or 1:</p>
+        <pre><code>Original coefficient: 127.3
+Strength (quantization step): 150
+
+To embed bit = 1:
+  quantized = round(127.3 / 150) × 150 = 150
+  modified  = 150 + (150 × 0.3) = 195
+
+To embed bit = 0:
+  quantized = round(127.3 / 150) × 150 = 150
+  modified  = 150 - (150 × 0.3) = 105
+
+Extraction:
+  coefficient ≥ quantized → bit = 1
+  coefficient < quantized → bit = 0</code></pre>
+
+        <h3 style="color:#f6c453;margin-top:20px;">The Embedding Process</h3>
+        <pre><code>For each 8×8 block in the image:
+  1. Extract block from luminance (Y) channel
+  2. Apply 2D DCT transform
+  3. Read coefficient at position (4,3)
+  4. Modify coefficient using QIM to encode one bit
+  5. Apply inverse DCT
+  6. Write modified block back to image</code></pre>
+        <p>This embeds <strong>one bit per 8×8 block</strong>. A 1920×1080 image has 32,400 blocks, yielding ~500 usable characters after error correction overhead.</p>
+
         <h2>Requirements</h2>
         <ul>
             <li>Python 3.8+</li>
