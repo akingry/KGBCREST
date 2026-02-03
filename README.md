@@ -59,12 +59,82 @@ Encoded Image
 
 ### DCT Watermarking
 
-The data is embedded in the **Discrete Cosine Transform** coefficients of the image — the same domain JPEG compression uses. This is why encoded images survive JPEG compression.
+The data is embedded in the **Discrete Cosine Transform (DCT)** coefficients of the image — the same frequency domain that JPEG compression operates in. This is why encoded images survive JPEG compression.
 
-- One bit embedded per 8×8 pixel block
-- Uses mid-frequency coefficient at position (4,3)
-- Quantization Index Modulation (QIM) for robust embedding
-- Strength setting: 150 (tuned for JPEG Q60 survival)
+#### What is DCT?
+
+The Discrete Cosine Transform converts an 8×8 block of pixels from spatial domain (brightness values) into frequency domain (how quickly brightness changes across the block):
+
+```
+Spatial Domain          DCT Frequency Domain
+┌─────────────────┐     ┌─────────────────┐
+│ Pixel values    │ ──► │ DC | Low freq   │
+│ (0-255 each)    │     │ ───┼───────────  │
+│                 │     │ Mid│            │
+│ 8×8 = 64 pixels │     │ ───┼─── High    │
+└─────────────────┘     └─────────────────┘
+```
+
+- **DC coefficient** (top-left): Average brightness of the block
+- **Low frequencies**: Gradual changes, smooth gradients
+- **Mid frequencies**: Edges, textures — **this is where we hide data**
+- **High frequencies**: Fine detail, noise — discarded by JPEG
+
+#### Why Mid-Frequency?
+
+JPEG compression:
+1. Preserves the DC coefficient (average brightness)
+2. Preserves low frequencies (smooth areas)
+3. **Mostly preserves mid frequencies** (edges/structure)
+4. Aggressively discards high frequencies (fine detail)
+
+By embedding data in **mid-frequency coefficient (4,3)**, we hide information in a region that:
+- Survives JPEG quantization (unlike high frequencies)
+- Isn't visually obvious (unlike DC/low frequencies)
+- Has enough "room" to encode bits robustly
+
+#### Quantization Index Modulation (QIM)
+
+To embed a bit, we use QIM — a technique that quantizes the coefficient to encode 0 or 1:
+
+```
+Original coefficient: 127.3
+
+To embed bit = 1:
+  quantized = round(127.3 / 150) × 150 = 150
+  modified  = 150 + (150 × 0.3) = 195
+
+To embed bit = 0:
+  quantized = round(127.3 / 150) × 150 = 150
+  modified  = 150 - (150 × 0.3) = 105
+
+Extraction:
+  Read coefficient, compare to quantization grid
+  If coefficient ≥ quantized → bit = 1
+  If coefficient < quantized → bit = 0
+```
+
+The **strength parameter (150)** determines the quantization step size:
+- Higher strength = more robust to compression, but more visible artifacts
+- Lower strength = less visible, but more fragile
+- 150 is tuned to survive JPEG quality 60 while remaining visually subtle
+
+#### The Full Process
+
+```
+For each 8×8 block in the image:
+   1. Extract the block from luminance (Y) channel
+   2. Apply 2D DCT transform
+   3. Read coefficient at position (4,3)
+   4. Modify coefficient using QIM to encode one bit
+   5. Apply inverse DCT
+   6. Write modified block back to image
+```
+
+This embeds **one bit per 8×8 block**, so a 1920×1080 image has:
+- (1920/8) × (1080/8) = 240 × 135 = 32,400 blocks
+- 32,400 bits available (minus 24-bit header = 32,376 data bits)
+- After 7× repetition and RS coding: ~500 usable characters
 
 ## Capacity
 
