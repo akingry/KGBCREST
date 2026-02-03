@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KGBCREST</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+            background: #0c0c0c;
+            min-height: 100vh;
+            color: #e8e3d5;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container { max-width: 800px; }
+        h1 {
+            color: #f6c453;
+            font-size: 2rem;
+            font-weight: normal;
+            margin-bottom: 10px;
+        }
+        h1::before { content: '🔐 '; }
+        .subtitle {
+            color: #7b7f87;
+            font-size: 0.9rem;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        h2 {
+            color: #f6c453;
+            font-size: 1.1rem;
+            font-weight: normal;
+            margin: 30px 0 15px 0;
+            border-bottom: 1px solid #3c414b;
+            padding-bottom: 5px;
+        }
+        h2::before { content: '> '; color: #7b7f87; }
+        p, li {
+            line-height: 1.8;
+            color: #b0b0b0;
+            margin-bottom: 10px;
+        }
+        ul { margin-left: 20px; }
+        code {
+            background: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #00d4ff;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-left: 3px solid #f6c453;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        a {
+            color: #00d4ff;
+            text-decoration: none;
+        }
+        a:hover { text-decoration: underline; }
+        .btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: #1e2d23;
+            border: 1px solid #f6c453;
+            color: #f6c453;
+            font-family: inherit;
+            font-size: 0.9rem;
+            text-decoration: none;
+            margin: 10px 10px 10px 0;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: #2a3d2e;
+            text-decoration: none;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature {
+            background: #1a1a1a;
+            padding: 20px;
+            border-left: 3px solid #3fb950;
+        }
+        .feature h3 {
+            color: #3fb950;
+            font-size: 0.95rem;
+            font-weight: normal;
+            margin-bottom: 10px;
+        }
+        .feature p {
+            font-size: 0.85rem;
+            margin: 0;
+        }
+        footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #3c414b;
+            color: #5c5c5c;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>KGBCREST</h1>
+        <p class="subtitle">
+            <strong>Kingry Graphical Book Cipher Compression Resistant Encrypted Steganography Tool</strong><br>
+            Hide encrypted messages in images that survive JPEG compression down to quality 60.
+        </p>
+
+        <a href="https://github.com/akingry/KGBCREST" class="btn">View on GitHub</a>
+        <a href="https://github.com/akingry/KGBCREST/archive/refs/heads/master.zip" class="btn">Download ZIP</a>
+
+        <h2>Features</h2>
+        <div class="features">
+            <div class="feature">
+                <h3>🔐 AES-256 Encryption</h3>
+                <p>Optional password-based encryption using AES-256-CBC with PBKDF2 key derivation.</p>
+            </div>
+            <div class="feature">
+                <h3>📖 Book Cipher</h3>
+                <p>Messages encoded as character positions in a shared source text file.</p>
+            </div>
+            <div class="feature">
+                <h3>📸 JPEG Resistant</h3>
+                <p>DCT watermarking survives JPEG compression down to quality 60.</p>
+            </div>
+            <div class="feature">
+                <h3>🛡️ Error Correction</h3>
+                <p>Reed-Solomon + repetition coding recovers from compression artifacts.</p>
+            </div>
+        </div>
+
+        <h2>Quick Start</h2>
+        <pre><code># Clone the repository
+git clone https://github.com/akingry/KGBCREST.git
+cd KGBCREST
+
+# Install dependencies
+pip install pillow numpy scipy reedsolo cryptography
+
+# Run the tool
+python server.py</code></pre>
+        <p>Then open <code>http://localhost:8080</code> in your browser.</p>
+
+        <h2>How It Works</h2>
+        <p>KGBCREST uses multiple layers of protection:</p>
+        <ol>
+            <li><strong>AES-256 Encryption</strong> (optional) — Password-protected encryption</li>
+            <li><strong>Book Cipher</strong> — Characters encoded as positions in shared source text</li>
+            <li><strong>Compression</strong> — zlib reduces data size by 40-60%</li>
+            <li><strong>Error Correction</strong> — Reed-Solomon + 7× bit repetition</li>
+            <li><strong>DCT Watermarking</strong> — Embedded in frequency domain coefficients</li>
+        </ol>
+
+        <h2>Requirements</h2>
+        <ul>
+            <li>Python 3.8+</li>
+            <li>pillow, numpy, scipy, reedsolo, cryptography</li>
+            <li>A shared <code>source_text.txt</code> file (the "book" for the cipher)</li>
+        </ul>
+
+        <footer>© 2026 Adam Kingry</footer>
+    </div>
+</body>
+</html>
