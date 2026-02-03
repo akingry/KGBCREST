@@ -1,5 +1,6 @@
 """
-StegoTool Backend Server
+KGBCREST Backend Server
+Kingry Graphical Book Cipher Compression Resistant Encrypted Steganography Tool
 
 Handles all encoding/decoding computation in Python.
 The HTML frontend just sends requests to this server.
@@ -47,7 +48,7 @@ def load_source_text():
         return False
 
 
-class StegoHandler(BaseHTTPRequestHandler):
+class KGBCRESTHandler(BaseHTTPRequestHandler):
     
     def _send_json(self, data, status=200):
         self.send_response(status)
@@ -156,6 +157,7 @@ class StegoHandler(BaseHTTPRequestHandler):
             
             message = data.get('message', '')
             image_data = data.get('image', '')  # Base64 encoded
+            password = data.get('password', '') or None  # Optional AES-256 password
             
             if not message:
                 self._send_error('No message provided')
@@ -183,7 +185,7 @@ class StegoHandler(BaseHTTPRequestHandler):
                 encode_image(
                     input_path, message, output_path,
                     strength=STRENGTH, rs_symbols=RS_SYMBOLS, repetition=REPETITION,
-                    source_path=SOURCE_TEXT_FILE
+                    source_path=SOURCE_TEXT_FILE, password=password
                 )
                 
                 # Read encoded image
@@ -215,6 +217,7 @@ class StegoHandler(BaseHTTPRequestHandler):
                 return
             
             image_data = data.get('image', '')  # Base64 encoded
+            password = data.get('password', '') or None  # Optional AES-256 password
             
             if not image_data:
                 self._send_error('No image provided')
@@ -236,7 +239,7 @@ class StegoHandler(BaseHTTPRequestHandler):
                 message = decode_image(
                     input_path,
                     strength=STRENGTH, rs_symbols=RS_SYMBOLS, repetition=REPETITION,
-                    source_path=SOURCE_TEXT_FILE
+                    source_path=SOURCE_TEXT_FILE, password=password
                 )
                 
                 self._send_json({
@@ -255,7 +258,7 @@ class StegoHandler(BaseHTTPRequestHandler):
     
     def log_message(self, format, *args):
         """Custom log format"""
-        print(f"[StegoTool] {args[0]}")
+        print(f"[KGBCREST] {args[0]}")
 
 
 def run_server(port=8080):
@@ -263,8 +266,8 @@ def run_server(port=8080):
     if not load_source_text():
         print("\nServer starting anyway, but encode/decode will fail without source_text.txt")
     
-    server = HTTPServer(('localhost', port), StegoHandler)
-    print(f"\nStegoTool server running at http://localhost:{port}")
+    server = HTTPServer(('localhost', port), KGBCRESTHandler)
+    print(f"\nKGBCREST server running at http://localhost:{port}")
     print("Press Ctrl+C to stop")
     try:
         server.serve_forever()

@@ -1,4 +1,6 @@
-# StegoTool
+# KGBCREST
+
+**Kingry Graphical Book Cipher Compression Resistant Encrypted Steganography Tool**
 
 A steganography tool that hides secret messages in images using a **book cipher** combined with **DCT watermarking**. Messages survive JPEG compression down to quality 60.
 
@@ -98,21 +100,12 @@ Tested results:
 | `server.py` | Python web server backend |
 | `web_client.html` | Web interface (served by server.py) |
 | `book_cipher.py` | Core encoding/decoding algorithms |
-| `stego_gui.py` | Alternative Tkinter GUI application |
 | `source_text.txt` | Shared source text for book cipher |
 
 ## Dependencies
 
 ```bash
 pip install pillow numpy scipy reedsolo
-```
-
-## Alternative: GUI Application
-
-Instead of the web interface, you can use the Tkinter GUI:
-
-```bash
-python stego_gui.py
 ```
 
 ## Technical Details

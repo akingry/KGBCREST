@@ -17,10 +17,87 @@ import os
 import zlib
 import struct
 import hashlib
+import secrets
 import numpy as np
 from PIL import Image
 from pathlib import Path
 from reedsolo import RSCodec, ReedSolomonError
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
+
+
+class AESCipher:
+    """AES-256 encryption using CBC mode with PKCS7 padding."""
+    
+    SALT_SIZE = 16
+    IV_SIZE = 16
+    KEY_SIZE = 32  # 256 bits
+    ITERATIONS = 100000
+    
+    @staticmethod
+    def _derive_key(password: str, salt: bytes) -> bytes:
+        """Derive a 256-bit key from password using PBKDF2."""
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.primitives import hashes
+        
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=AESCipher.KEY_SIZE,
+            salt=salt,
+            iterations=AESCipher.ITERATIONS,
+            backend=default_backend()
+        )
+        return kdf.derive(password.encode('utf-8'))
+    
+    @staticmethod
+    def encrypt(plaintext: bytes, password: str) -> bytes:
+        """
+        Encrypt data with AES-256-CBC.
+        
+        Returns: salt (16) + iv (16) + ciphertext
+        """
+        salt = secrets.token_bytes(AESCipher.SALT_SIZE)
+        iv = secrets.token_bytes(AESCipher.IV_SIZE)
+        key = AESCipher._derive_key(password, salt)
+        
+        # Pad plaintext to block size
+        padder = padding.PKCS7(128).padder()
+        padded_data = padder.update(plaintext) + padder.finalize()
+        
+        # Encrypt
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+        
+        return salt + iv + ciphertext
+    
+    @staticmethod
+    def decrypt(data: bytes, password: str) -> bytes:
+        """
+        Decrypt AES-256-CBC encrypted data.
+        
+        Expects: salt (16) + iv (16) + ciphertext
+        """
+        if len(data) < AESCipher.SALT_SIZE + AESCipher.IV_SIZE + 16:
+            raise ValueError("Invalid encrypted data (too short)")
+        
+        salt = data[:AESCipher.SALT_SIZE]
+        iv = data[AESCipher.SALT_SIZE:AESCipher.SALT_SIZE + AESCipher.IV_SIZE]
+        ciphertext = data[AESCipher.SALT_SIZE + AESCipher.IV_SIZE:]
+        
+        key = AESCipher._derive_key(password, salt)
+        
+        # Decrypt
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+        
+        # Remove padding
+        unpadder = padding.PKCS7(128).unpadder()
+        plaintext = unpadder.update(padded_data) + unpadder.finalize()
+        
+        return plaintext
 
 # Default source text location
 DEFAULT_SOURCE_FILE = Path(__file__).parent / "source_text.txt"
@@ -411,7 +488,14 @@ class RobustWatermark:
             length = (length << 1) | bits[i]
         
         if length <= 0 or length > len(bits) - 24:
-            raise ValueError(f"Invalid length header: {length}")
+            raise ValueError(
+                f"No hidden message found in this image.\n\n"
+                f"This could mean:\n"
+                f"• The image doesn't contain an encoded message\n"
+                f"• JPEG quality was too low (below 60)\n"
+                f"• The image was cropped or resized\n\n"
+                f"(Technical: invalid length header {length})"
+            )
         
         # Return data bits
         return bits[24:24 + length]
@@ -427,7 +511,7 @@ class RobustWatermark:
         return idct(idct(block.T, norm='ortho').T, norm='ortho')
 
 
-def encode_image(image_path, message, output_path, strength=50, rs_symbols=32, repetition=3, source_path=None):
+def encode_image(image_path, message, output_path, strength=50, rs_symbols=32, repetition=3, source_path=None, password=None):
     """
     Encode a message into an image using book cipher + error correction + DCT watermarking.
     
@@ -439,6 +523,7 @@ def encode_image(image_path, message, output_path, strength=50, rs_symbols=32, r
         rs_symbols: Reed-Solomon parity symbols (default 32, use 64 for max robustness)
         repetition: Bit repetition count (default 3, use 7 for max robustness)
         source_path: Path to source text file (book). If None, uses default.
+        password: Optional password for AES-256 encryption. If provided, message is encrypted.
     """
     print(f"Encoding: '{message[:50]}{'...' if len(message) > 50 else ''}'")
     
@@ -446,25 +531,37 @@ def encode_image(image_path, message, output_path, strength=50, rs_symbols=32, r
     cipher = BookCipher(source_path)
     compressed = cipher.encode_message(message)
     
-    # 2. Error correction: add RS parity + repetition
+    # 2. Optional AES-256 encryption (after compression, before error correction)
+    if password:
+        print("Encrypting with AES-256...")
+        encrypted = AESCipher.encrypt(compressed, password)
+        # Prefix with marker byte (0x01 = encrypted)
+        data_for_ec = b'\x01' + encrypted
+    else:
+        # Prefix with marker byte (0x00 = plaintext)
+        data_for_ec = b'\x00' + compressed
+    
+    # 3. Error correction: add RS parity + repetition
     print("Adding error correction...")
     ec = ErrorCorrection(rs_symbols=rs_symbols, repetition=repetition)
-    protected_bits = ec.encode(compressed)
+    protected_bits = ec.encode(data_for_ec)
     
-    # 3. Embed in image
+    # 4. Embed in image
     print("Embedding in image...")
     watermark = RobustWatermark(strength=strength)
     watermark.embed(image_path, protected_bits, output_path)
     
     print(f"\n✓ Saved to: {output_path}")
     print(f"  Message: {len(message)} chars")
+    print(f"  Encrypted: {'Yes (AES-256)' if password else 'No'}")
     print(f"  Compressed: {len(compressed)} bytes")
+    print(f"  Final data: {len(data_for_ec)} bytes")
     print(f"  With EC: {len(protected_bits)} bits")
     
     return True
 
 
-def decode_image(image_path, strength=50, rs_symbols=32, repetition=3, source_path=None):
+def decode_image(image_path, strength=50, rs_symbols=32, repetition=3, source_path=None, password=None):
     """
     Decode a message from a watermarked image.
     
@@ -474,6 +571,7 @@ def decode_image(image_path, strength=50, rs_symbols=32, repetition=3, source_pa
         rs_symbols: Reed-Solomon parity symbols (must match encoding)
         repetition: Bit repetition count (must match encoding)
         source_path: Path to source text file (book). Must be same as encoding.
+        password: Optional password for AES-256 decryption. Required if message was encrypted.
     """
     print(f"Decoding: {image_path}")
     
@@ -484,10 +582,33 @@ def decode_image(image_path, strength=50, rs_symbols=32, repetition=3, source_pa
     
     # 2. Remove error correction
     ec = ErrorCorrection(rs_symbols=rs_symbols, repetition=repetition)
-    compressed = ec.decode(protected_bits)
-    print(f"  After EC: {len(compressed)} bytes")
+    data_from_ec = ec.decode(protected_bits)
+    print(f"  After EC: {len(data_from_ec)} bytes")
     
-    # 3. Book cipher: decode relative positions to message
+    # 3. Check encryption marker and decrypt if needed
+    if len(data_from_ec) < 1:
+        raise ValueError("Invalid message data")
+    
+    marker = data_from_ec[0]
+    payload = data_from_ec[1:]
+    
+    if marker == 0x01:
+        # Encrypted message
+        if not password:
+            raise ValueError("This message is encrypted. Password required.")
+        print("Decrypting AES-256...")
+        try:
+            compressed = AESCipher.decrypt(payload, password)
+        except Exception as e:
+            raise ValueError(f"Decryption failed. Wrong password or corrupted data.")
+    elif marker == 0x00:
+        # Plaintext message
+        compressed = payload
+    else:
+        # Legacy format (no marker) - treat as plaintext compressed data
+        compressed = data_from_ec
+    
+    # 4. Book cipher: decode relative positions to message
     cipher = BookCipher(source_path)
     message = cipher.decode_message(compressed)
     
