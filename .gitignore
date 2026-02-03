@@ -12,8 +12,8 @@ test_*.jpg
 test_*.png
 test_*.webp
 
-# Downloaded source text (can be re-downloaded)
-source_text.txt
+# Downloaded source text - KEEP IN REPO for deployment
+# source_text.txt
 
 # IDE
 .vscode/
